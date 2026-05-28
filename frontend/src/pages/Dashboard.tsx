@@ -1,35 +1,15 @@
 import { Link } from 'react-router-dom'
 import Navbar from '../components/layout/Navbar'
 
-const mockProjects = [
-  {
-    id: '1',
-    name: 'NACA 0012 Airfoil',
-    geometry: 'Airfoil',
-    lastRun: '2 hours ago',
-    status: 'completed',
-    cd: 0.028,
-    cl: 0.412,
-  },
-  {
-    id: '2',
-    name: 'F1 Front Wing',
-    geometry: 'Custom',
-    lastRun: '1 day ago',
-    status: 'completed',
-    cd: 0.019,
-    cl: 1.24,
-  },
-  {
-    id: '3',
-    name: 'Pipe Flow Re=500',
-    geometry: 'Channel',
-    lastRun: '3 days ago',
-    status: 'completed',
-    cd: null,
-    cl: null,
-  },
-]
+const mockProjects: {
+  id: string
+  name: string
+  geometry: string
+  lastRun: string
+  status: string
+  cd: number | null
+  cl: number | null
+}[] = []
 
 const statusColors: Record<string, string> = {
   completed: 'bg-green-500/20 text-green-400',
