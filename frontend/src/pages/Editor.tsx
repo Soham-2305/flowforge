@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams} from 'react-router-dom'
 import Navbar from '../components/layout/Navbar'
 import StatusBar from '../components/layout/StatusBar'
 import ShapeToolbar from '../components/geometry/ShapeToolbar'
 import GeometryCanvas from '../components/geometry/GeometryCanvas'
-import SolverPanel, { SolverParams } from '../components/solver/SolverPanel'
+import SolverPanel, { type SolverParams } from '../components/solver/SolverPanel'
 import BoundaryPanel from '../components/solver/BoundaryPanel'
 import RunControls from '../components/solver/RunControls'
 import ResidualPlot from '../components/solver/ResidualPlot'
@@ -34,7 +34,7 @@ export default function Editor() {
   const [boundaries, setBoundaries] = useState({})
   const [residuals, setResiduals] = useState<number[]>([])
   const [iteration, setIteration] = useState(0)
-  const simulationRef = useRef<NodeJS.Timeout | null>(null)
+  const simulationRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isNew = projectId === 'new'
 
