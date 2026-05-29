@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams} from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import Navbar from '../components/layout/Navbar'
 import StatusBar from '../components/layout/StatusBar'
 import ShapeToolbar from '../components/geometry/ShapeToolbar'
@@ -8,6 +8,8 @@ import SolverPanel, { type SolverParams } from '../components/solver/SolverPanel
 import BoundaryPanel from '../components/solver/BoundaryPanel'
 import RunControls from '../components/solver/RunControls'
 import ResidualPlot from '../components/solver/ResidualPlot'
+import { projectsApi } from '../api/projects'
+import { solverApi } from '../api/solver'
 
 type Step = 0 | 1 | 2 | 3
 type Status = 'idle' | 'meshing' | 'running' | 'done' | 'error'
@@ -36,46 +38,82 @@ export default function Editor() {
   const [iteration, setIteration] = useState(0)
   const simulationRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const isNew = projectId === 'new'
+const navigate = useNavigate()
+const isNew = projectId === 'new'
+const [realProjectId, setRealProjectId] = useState<string | null>(
+  isNew ? null : (projectId ?? null)
+)
 
-  // Mock simulation loop
-  const handleRun = () => {
-    setStatus('meshing')
-    setResiduals([])
-    setIteration(0)
+// Create project in DB when user first draws something
+const ensureProject = async (): Promise<string> => {
+  if (realProjectId) return realProjectId
+  const res = await projectsApi.create('Untitled simulation')
+  const id = res.data.id
+  setRealProjectId(id)
+  navigate(`/editor/${id}`, { replace: true })
+  return id
+}
 
-    setTimeout(() => {
+// WebSocket connection
+const wsRef = useRef<WebSocket | null>(null)
+
+const handleRun = async () => {
+  const id = await ensureProject()
+
+  // Save current shapes + params
+  await projectsApi.update(id, {
+    solver_params: solverParams,
+    boundaries,
+  })
+
+  setStatus('meshing')
+  setResiduals([])
+  setIteration(0)
+
+  // Connect WebSocket
+  const ws = new WebSocket(`ws://localhost:8000/ws/${id}`)
+  wsRef.current = ws
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    if (data.type === 'progress') {
+      setIteration(data.iteration)
+      setResiduals(prev => [...prev, data.residual])
       setStatus('running')
       setStep(2)
-      let iter = 0
-      let residual = 1.0
-
-      simulationRef.current = setInterval(() => {
-        iter++
-        residual *= 0.992 + Math.random() * 0.004
-        setIteration(iter)
-        setResiduals(prev => [...prev, residual])
-
-        if (iter >= solverParams.maxIterations || residual < solverParams.convergenceTolerance) {
-          clearInterval(simulationRef.current!)
-          setStatus('done')
-          setStep(3)
-        }
-      }, 50)
-    }, 1500)
+    }
+    if (data.type === 'complete') {
+      setStatus('done')
+      setStep(3)
+      setIteration(data.iteration)
+      setResiduals(prev => [...prev, data.residual])
+    }
+    if (data.type === 'error') {
+      setStatus('error')
+    }
   }
 
-  const handleStop = () => {
-    if (simulationRef.current) clearInterval(simulationRef.current)
-    setStatus('idle')
+  ws.onopen = async () => {
+    setStatus('running')
+    await solverApi.run(id, solverParams)
   }
+}
 
-  const handleReset = () => {
-    setStatus('idle')
-    setResiduals([])
-    setIteration(0)
-    setStep(0)
-  }
+const handleStop = async () => {
+  if (realProjectId) await solverApi.stop(realProjectId)
+  wsRef.current?.close()
+  setStatus('idle')
+}
+
+const handleReset = () => {
+  wsRef.current?.close()
+  setStatus('idle')
+  setResiduals([])
+  setIteration(0)
+  setStep(0)
+}
+
+useEffect(() => () => { wsRef.current?.close() }, [])
 
   useEffect(() => () => {
     if (simulationRef.current) clearInterval(simulationRef.current)
